@@ -75,9 +75,6 @@ namespace SteamDocsScraper
                 GetDocumentationLinks();
 
                 FetchLinks();
-
-                File.WriteAllText("source.html", driver.PageSource);
-                driver.GetScreenshot().SaveAsFile("partner.png", System.Drawing.Imaging.ImageFormat.Png);
             }
 
             driver.Quit();
