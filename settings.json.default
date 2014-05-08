@@ -1,0 +1,5 @@
+﻿{
+	"steamUsername": "your-steam-username",
+	"steamPassword": "your-steam-password",
+	"predefinedDocs": "oauth"
+}

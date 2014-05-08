@@ -1,0 +1,13 @@
+settings.json
+
+[Bb]in/
+[Oo]bj/
+
+*.sln
+*.suo
+*.csproj
+*.user
+*.usr
+*.obj
+
+packages/
