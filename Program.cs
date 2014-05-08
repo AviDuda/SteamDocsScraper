@@ -24,7 +24,6 @@ namespace SteamDocsScraper
         static Dictionary<string, string> settings;
 
         static ChromeDriver driver { get; set; }
-        static IWait<IWebDriver> wait { get; set; }
 
         static void Main(string[] args)
         {
@@ -41,7 +40,6 @@ namespace SteamDocsScraper
             }
 
             driver = new ChromeDriver();
-            wait = new WebDriverWait(driver, TimeSpan.FromSeconds(2.00));
 
             if (!Directory.Exists(directory))
             {
