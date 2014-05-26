@@ -70,6 +70,8 @@ namespace SteamDocsScraper
                     }
                 }
 
+                AddFromSearchResults();
+
                 driver.Navigate().GoToUrl("https://partner.steamgames.com/home/steamworks");
 
                 GetDocumentationLinks();
@@ -132,13 +134,33 @@ namespace SteamDocsScraper
             }
         }
 
-        static void GetDocumentationLinks(string currentPage = "")
+        static void AddFromSearchResults() {
+            if (settings.Keys.Contains("searchQueries"))
+            {
+                foreach (string query in settings["searchQueries"].Split(','))
+                {
+                    int start = 0;
+                    do {
+                        string url = "https://partner.steamgames.com/documentation/search?query=" + query + "&start=" + start;
+                        Console.WriteLine("Search: Navigating to {0}", url);
+                        driver.Navigate().GoToUrl(url);
+                        start += 10;
+                    } while (GetDocumentationLinks("mail")[0] > 0);
+                }
+            }
+        }
+
+        static int[] GetDocumentationLinks(string currentPage = "")
         {
             if (currentPage != "")
             {
                 currentPage = "(?!" + currentPage + ")";
             }
             var links = driver.FindElementsByTagName("a");
+            
+            int allDocumentationLinks = 0;
+            int newDocumentationLinks = 0;
+
             foreach (var link in links)
             {
                 string href = "";
@@ -151,8 +173,10 @@ namespace SteamDocsScraper
                 {
                     if (Regex.IsMatch(href, "//partner.steamgames.com/documentation/(?:(?!search)" + currentPage + ".*)/?$"))
                     {
+                        allDocumentationLinks += 1;
                         href = Regex.Replace(href, "#.*", "");
                         documentationLinks.Add(href, false);
+                        newDocumentationLinks += 1;
                         Console.WriteLine("Found a link {0}", href);
                     }
                 }
@@ -160,6 +184,11 @@ namespace SteamDocsScraper
                 {
                 }
             }
+
+            Console.WriteLine("{0} links, {1} new.", allDocumentationLinks, newDocumentationLinks);
+
+            int[] retVal = { allDocumentationLinks, newDocumentationLinks };
+            return retVal;
         }
 
         static void FetchLinks()
@@ -183,35 +212,46 @@ namespace SteamDocsScraper
             Console.WriteLine("Navigating to {0}", link);
             driver.Navigate().GoToUrl(link);
 
+            string file = link.Split('/').Last(x => x != "");
+
+
+            // API Overview page is showing if the docs page doesn't exist
+            var isDefaultPage = (file != "api" && driver.ElementIsPresent(By.Id("landingWelcome")) && driver.FindElementById("landingWelcome").Text == "API overview");
+
+            if (isDefaultPage)
+            {
+                Console.WriteLine("SaveDocumentation: Default page. URL: {0}", link);
+                documentationLinks[link] = true;
+                return;
+            }
+            
+            // Normal layout.
             var isAdminPage = driver.ElementIsPresent(By.ClassName("AdminPageContent"));
-            // Some pages like https://partner.steamgames.com/documentation/mod_team use the old design
+
+            // Some pages like https://partner.steamgames.com/documentation/mod_team use the old layout
             var isOldAdminPage = driver.ElementIsPresent(By.Id("leftAreaContainer"));
 
-            if (isAdminPage || isOldAdminPage)
+            IWebElement content;
+
+            if (isAdminPage)
             {
-                IWebElement content;
-
-                if (isAdminPage)
-                {
-                    content = driver.FindElementByClassName("AdminPageContent");
-                }
-                else if (isOldAdminPage)
-                {
-                    content = driver.FindElementById("leftAreaContainer");
-                }
-                else
-                {
-                    // Unknown content. Ignore.
-                    Console.WriteLine("SaveDocumentation: Unknown content. URL: {0}", link);
-                    documentationLinks[link] = true;
-                    return;
-                }
-
-                string file = link.Split('/').Last(x => x != "");
-                Console.WriteLine("Saving {0}.html", file);
-                File.WriteAllText(Path.Combine(directory, file + ".html"), content.GetAttribute("innerHTML"));
-                documentationLinks[link] = true;
+                content = driver.FindElementByClassName("AdminPageContent");
             }
+            else if (isOldAdminPage)
+            {
+                content = driver.FindElementById("leftAreaContainer");
+            }
+            else
+            {
+                // Unknown content. Ignore.
+                Console.WriteLine("SaveDocumentation: Unknown content. URL: {0}", link);
+                documentationLinks[link] = true;
+                return;
+            }
+
+            Console.WriteLine("Saving {0}.html", file);
+            File.WriteAllText(Path.Combine(directory, file + ".html"), content.GetAttribute("innerHTML"));
+            documentationLinks[link] = true;
         }
     }
 }

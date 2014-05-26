@@ -10,8 +10,10 @@ Because I'm getting tired of not knowing what has been changed in Steamworks doc
 
 # Instructions
 
-Copy `settings.json.default` to `settings.json` in your own build and set Steam username and password.
-If you know about any hidden documentation (like [OAuth](https://partner.steamgames.com/documentation/oauth) is, it isn't linked anywhere), add it to `predefinedDocs` (comma delimited).
+Copy `settings.json.default` to `settings.json` in your own build and set your Steam username and password.
+It is possible to scrape the search page for any search queries you want (`searchQueries`, comma delimited). It will collect links to documentation pages (stops fetching if no useful links are found).
+If you know about any hidden documentation which still isn't linked anywhere, add it to `predefinedDocs` (comma delimited).
+
 
 Partner site will always require a Steam Guard code (because cookies always get removed when running with [Selenium WebDriver](http://docs.seleniumhq.org/projects/webdriver/)) and sometimes captcha, so don't be surprised.
 

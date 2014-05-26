@@ -1,5 +1,6 @@
 ﻿{
 	"steamUsername": "your-steam-username",
 	"steamPassword": "your-steam-password",
-	"predefinedDocs": "oauth"
+	"predefinedDocs": "",
+	"searchQueries": "Steam,SDK,API,can"
 }
