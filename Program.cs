@@ -1,13 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Support.UI;
-using Newtonsoft.Json;
 
 namespace SteamDocsScraper
 {
@@ -25,7 +23,7 @@ namespace SteamDocsScraper
 
         static ChromeDriver driver { get; set; }
 
-        static void Main(string[] args)
+        static void Main()
         {
             if (!File.Exists("settings.json"))
             {
@@ -70,11 +68,11 @@ namespace SteamDocsScraper
                     }
                 }
 
-                AddFromSearchResults();
-
                 driver.Navigate().GoToUrl("https://partner.steamgames.com/home/steamworks");
 
                 GetDocumentationLinks();
+
+                AddFromSearchResults();
 
                 FetchLinks();
             }
@@ -134,28 +132,31 @@ namespace SteamDocsScraper
             }
         }
 
-        static void AddFromSearchResults() {
+        static void AddFromSearchResults()
+        {
             if (settings.Keys.Contains("searchQueries"))
             {
                 foreach (string query in settings["searchQueries"].Split(','))
                 {
                     int start = 0;
-                    do {
+                    do
+                    {
                         string url = "https://partner.steamgames.com/documentation/search?query=" + query + "&start=" + start;
                         Console.WriteLine("Search: Navigating to {0}", url);
                         driver.Navigate().GoToUrl(url);
                         start += 10;
-                    } while (GetDocumentationLinks("mail")[0] > 0);
+                    } while (GetDocumentationLinks());
                 }
             }
         }
 
-        static int[] GetDocumentationLinks(string currentPage = "")
+        static bool GetDocumentationLinks(string currentPage = "")
         {
             if (currentPage != "")
             {
-                currentPage = "(?!" + currentPage + ")";
+                currentPage = "|" + currentPage + "$";
             }
+
             var links = driver.FindElementsByTagName("a");
             
             int allDocumentationLinks = 0;
@@ -171,7 +172,7 @@ namespace SteamDocsScraper
                 
                 try
                 {
-                    if (Regex.IsMatch(href, "//partner.steamgames.com/documentation/(?:(?!search)" + currentPage + ".*)/?$"))
+                    if (Regex.IsMatch(href, "//partner.steamgames.com/documentation/(?:(?!search|mail" + currentPage + ").*)/?$"))
                     {
                         allDocumentationLinks += 1;
                         href = Regex.Replace(href, "#.*", "");
@@ -187,14 +188,13 @@ namespace SteamDocsScraper
 
             Console.WriteLine("{0} links, {1} new.", allDocumentationLinks, newDocumentationLinks);
 
-            int[] retVal = { allDocumentationLinks, newDocumentationLinks };
-            return retVal;
+            return allDocumentationLinks > 0;
         }
 
         static void FetchLinks()
         {
             IEnumerable<KeyValuePair<string, bool>> links;
-            while ((links = documentationLinks.Where(l => l.Value == false).ToArray()).Count() > 0)
+            while ((links = documentationLinks.Where(l => l.Value == false).ToArray()).Any())
             {
                 foreach (var link in links)
                 {
