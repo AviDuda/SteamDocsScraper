@@ -44,7 +44,7 @@ namespace SteamDocsScraper
                 Directory.CreateDirectory(directory);
             }
 
-            Array.ForEach(Directory.GetFiles(directory), File.Delete);
+            Array.ForEach(Directory.GetFiles(directory, "*.html", SearchOption.TopDirectoryOnly), File.Delete);
 
             driver.Navigate().GoToUrl("https://partner.steamgames.com/");
 
@@ -249,8 +249,14 @@ namespace SteamDocsScraper
                 return;
             }
 
+            string html = content.GetAttribute("innerHTML");
+
+            // Remove token, auth and steamid values.
+
+            html = Regex.Replace(html, @"name=\\""(token|auth|steamid)\\"" value=\\""[A-Za-z0-9\[\]_\-\:]+\\""", @"name=\""$1\"" value=\""hunter2\""");
+
             Console.WriteLine("Saving {0}.html", file);
-            File.WriteAllText(Path.Combine(directory, file + ".html"), content.GetAttribute("innerHTML"));
+            File.WriteAllText(Path.Combine(directory, file + ".html"), html);
             documentationLinks[link] = true;
         }
     }
