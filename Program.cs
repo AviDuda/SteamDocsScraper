@@ -253,7 +253,7 @@ namespace SteamDocsScraper
 
             // Remove token, auth and steamid values.
 
-            html = Regex.Replace(html, @"name=\\""(token|auth|steamid)\\"" value=\\""[A-Za-z0-9\[\]_\-\:]+\\""", @"name=\""$1\"" value=\""hunter2\""");
+            html = Regex.Replace(html, @"name=\\""(token|token_secure|auth|steamid)\\"" value=\\""[A-Za-z0-9\[\]_\-\:]+\\""", @"name=\""$1\"" value=\""hunter2\""");
 
             Console.WriteLine("Saving {0}.html", file);
             File.WriteAllText(Path.Combine(directory, file + ".html"), html);
