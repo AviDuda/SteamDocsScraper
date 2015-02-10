@@ -85,40 +85,50 @@ namespace SteamDocsScraper
 
         static void Login()
         {
-            var fieldAccountName = driver.FindElementById("steamAccountName");
-            var fieldSteamPassword = driver.FindElementById("steamPassword");
-            var buttonLogin = driver.FindElementByName("login_button");
+            var needsSteamGuard = driver.ElementIsPresent(By.Id("authcode"));
 
-            fieldAccountName.Clear();
-            fieldAccountName.SendKeys(settings["steamUsername"]);
-            fieldSteamPassword.Clear();
-            fieldSteamPassword.SendKeys(settings["steamPassword"]);
-
-            if (driver.ElementIsPresent(By.Id("emailauth")))
+            if (needsSteamGuard)
             {
-                var fieldEmailAuth = driver.FindElementById("emailauth");
+                var fieldEmailAuth = driver.FindElementById("authcode");
                 fieldEmailAuth.Clear();
 
                 Console.WriteLine("Please insert a Steam Guard code.");
                 string steamGuard = Console.ReadLine();
                 fieldEmailAuth.SendKeys(steamGuard);
-            }
 
-            if (driver.ElementIsPresent(By.Id("input_captcha")))
+                var friendlyName = driver.FindElementById("friendlyname");
+                friendlyName.SendKeys("SteamDocsScraper");
+
+                var submitButton = driver.FindElementByCssSelector("#auth_buttonset_entercode .leftbtn");
+                submitButton.Click();
+            }
+            else
             {
-                var fieldCaptcha = driver.FindElementById("input_captcha");
-                fieldCaptcha.Clear();
+                var fieldAccountName = driver.FindElementById("steamAccountName");
+                var fieldSteamPassword = driver.FindElementById("steamPassword");
+                var buttonLogin = driver.FindElementById("login_btn_signin");
 
-                Console.WriteLine("Please insert captcha.");
-                string captcha = Console.ReadLine();
-                fieldCaptcha.SendKeys(captcha);
+                fieldAccountName.Clear();
+                fieldAccountName.SendKeys(settings["steamUsername"]);
+                fieldSteamPassword.Clear();
+                fieldSteamPassword.SendKeys(settings["steamPassword"]);
+
+                if (driver.ElementIsPresent(By.Id("input_captcha")))
+                {
+                    var fieldCaptcha = driver.FindElementById("input_captcha");
+                    fieldCaptcha.Clear();
+
+                    Console.WriteLine("Please insert captcha.");
+                    string captcha = Console.ReadLine();
+                    fieldCaptcha.SendKeys(captcha);
+                }
+
+                buttonLogin.Click();
             }
 
-            buttonLogin.Click();
+            System.Threading.Thread.Sleep(4000);
 
-            System.Threading.Thread.Sleep(2000);
-
-            if (driver.ElementIsPresent(By.ClassName("AdminPageContent")))
+            if (driver.ElementIsPresent(By.Id("success_continue_btn")))
             {
                 signedIn = true;
             }
@@ -253,7 +263,9 @@ namespace SteamDocsScraper
 
             // Remove token, auth and steamid values.
 
-            html = Regex.Replace(html, @"name=\\""(token|token_secure|auth|steamid)\\"" value=\\""[A-Za-z0-9\[\]_\-\:]+\\""", @"name=\""$1\"" value=\""hunter2\""");
+            string matchPattern = @"name=(\\)?""(token|token_secure|auth|steamid|webcookie)(\\)?"" value=(\\)?""[A-Za-z0-9\[\]_\-\:]+(\\)?""";
+            string replacementPattern = @"name=$1""$2$3"" value=$4""hunter2$5""";
+            html = Regex.Replace(html, matchPattern, replacementPattern);
 
             Console.WriteLine("Saving {0}.html", file);
             File.WriteAllText(Path.Combine(directory, file + ".html"), html);
