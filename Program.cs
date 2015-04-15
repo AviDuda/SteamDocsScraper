@@ -242,33 +242,46 @@ namespace SteamDocsScraper
             var isOldAdminPage = driver.ElementIsPresent(By.Id("leftAreaContainer"));
 
             IWebElement content;
+            string html = "";
 
             if (isAdminPage)
             {
                 content = driver.FindElementByClassName("AdminPageContent");
+                html = content.GetAttribute("innerHTML");
+                file += ".html";
             }
             else if (isOldAdminPage)
             {
                 content = driver.FindElementById("leftAreaContainer");
+                html = content.GetAttribute("innerHTML");
+                file += ".html";
             }
             else
             {
-                // Unknown content. Ignore.
+                // Unknown content. Save to a file.
                 Console.WriteLine("SaveDocumentation: Unknown content. URL: {0}", link);
-                documentationLinks[link] = true;
-                return;
+
+                if (driver.ElementIsPresent(By.XPath("/html/body/pre")))
+                {
+                    // text/plain or something similar
+                    content = driver.FindElementByXPath("/html/body/pre");
+                    html = content.GetAttribute("innerHTML");
+                }
+                else
+                {
+                    // HTML files, hopefully. Let's hope you won't see HTML tags where you shouldn't.
+                    html = driver.PageSource;
+                }
             }
 
-            string html = content.GetAttribute("innerHTML");
+            // Remove values which would leak user's auth tokens etc.
 
-            // Remove token, auth and steamid values.
-
-            string matchPattern = @"name=(\\)?""(token|token_secure|auth|steamid|webcookie)(\\)?"" value=(\\)?""[A-Za-z0-9\[\]_\-\:]+(\\)?""";
-            string replacementPattern = @"name=$1""$2$3"" value=$4""hunter2$5""";
+            string matchPattern = @"name: ""(token|token_secure|auth|steamid|webcookie)"", value: ""[A-Za-z0-9\[\]_\-\:]+""";
+            string replacementPattern = @"name: ""$1"", value: ""hunter2""";
             html = Regex.Replace(html, matchPattern, replacementPattern);
 
-            Console.WriteLine("Saving {0}.html", file);
-            File.WriteAllText(Path.Combine(directory, file + ".html"), html);
+            Console.WriteLine("Saving {0}", file);
+            File.WriteAllText(Path.Combine(directory, file), html);
             documentationLinks[link] = true;
         }
     }
