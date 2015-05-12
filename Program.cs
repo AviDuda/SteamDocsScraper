@@ -40,6 +40,7 @@ namespace SteamDocsScraper
             var options = new ChromeOptions();
             options.AddArgument(string.Format("--user-data-dir={0}", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userdata")));
             options.AddArgument("--enable-file-cookies");
+            options.AddArgument("--disable-cache");
 
             driver = new ChromeDriver(options);
 
