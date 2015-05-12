@@ -37,7 +37,11 @@ namespace SteamDocsScraper
                 throw new Exception("Please provide your Steam username and password in settings.json.");
             }
 
-            driver = new ChromeDriver();
+            var options = new ChromeOptions();
+            options.AddArgument(string.Format("--user-data-dir={0}", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userdata")));
+            options.AddArgument("--enable-file-cookies");
+
+            driver = new ChromeDriver(options);
 
             if (!Directory.Exists(directory))
             {
@@ -128,7 +132,7 @@ namespace SteamDocsScraper
 
             System.Threading.Thread.Sleep(4000);
 
-            if (driver.ElementIsPresent(By.Id("success_continue_btn")))
+            if (driver.ElementIsPresent(By.Id("success_continue_btn")) || driver.ElementIsPresent(By.ClassName("AdminPageContent")))
             {
                 signedIn = true;
             }
