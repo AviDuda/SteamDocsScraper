@@ -1,6 +1,6 @@
 ﻿{
 	"steamUsername": "your-steam-username",
 	"steamPassword": "your-steam-password",
-	"predefinedDocs": "",
+	"predefinedDocs": "controller_dongle,dev_tools,languages,marketing_store,sdk_access_agreement,welcome_oem,help_account",
 	"searchQueries": "Steam,SDK,API,can"
 }
