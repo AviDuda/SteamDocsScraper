@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.Support.UI;
 
 namespace SteamDocsScraper
 {
@@ -53,7 +54,7 @@ namespace SteamDocsScraper
 
             driver.Navigate().GoToUrl("https://partner.steamgames.com/");
 
-            if (signedIn || driver.ElementIsPresent(By.ClassName("AdminPageContent")))
+            if (driver.ElementIsPresent(By.ClassName("avatar")))
             {
                 signedIn = true;
             }
@@ -90,6 +91,8 @@ namespace SteamDocsScraper
 
         static void Login()
         {
+            new WebDriverWait(driver, TimeSpan.FromSeconds(10)).Until(ExpectedConditions.ElementIsVisible(By.Id("login_btn_signin")));
+
             var needsSteamGuard = driver.ElementIsPresent(By.Id("authcode"));
 
             if (needsSteamGuard)
@@ -105,6 +108,12 @@ namespace SteamDocsScraper
                 friendlyName.SendKeys("SteamDocsScraper");
 
                 var submitButton = driver.FindElementByCssSelector("#auth_buttonset_entercode .leftbtn");
+
+                if (!submitButton.Displayed)
+                {
+                    submitButton = driver.FindElementByCssSelector("#auth_buttonset_incorrectcode .leftbtn");
+                }
+
                 submitButton.Click();
             }
             else
@@ -133,17 +142,14 @@ namespace SteamDocsScraper
 
             System.Threading.Thread.Sleep(4000);
 
-            if (driver.ElementIsPresent(By.Id("success_continue_btn")) || driver.ElementIsPresent(By.ClassName("AdminPageContent")))
+            if (driver.ElementIsPresent(By.Id("success_continue_btn")) || driver.ElementIsPresent(By.ClassName("avatar")))
             {
                 signedIn = true;
             }
-            else
+            else if (tries < 3)
             {
-                if (tries < 3)
-                {
-                    tries++;
-                    Login();
-                }
+                tries++;
+                Login();
             }
         }
 
@@ -184,20 +190,22 @@ namespace SteamDocsScraper
                 {
                     href = link.GetAttribute("href");
                 }
-                
-                try
+
+                // TODO: optimize this and remove double Regex.Replace
+                if (Regex.IsMatch(href, "//partner.steamgames.com/documentation/(?:(?!search|mail" + currentPage + ").*)/?$"))
                 {
-                    if (Regex.IsMatch(href, "//partner.steamgames.com/documentation/(?:(?!search|mail" + currentPage + ").*)/?$"))
+                    href = Regex.Replace(href, "#.*", "");
+                    href = Regex.Replace(href, "\\?l=[a-z]+$", "");
+
+                    if (documentationLinks.ContainsKey(href))
                     {
-                        allDocumentationLinks += 1;
-                        href = Regex.Replace(href, "#.*", "");
-                        documentationLinks.Add(href, false);
-                        newDocumentationLinks += 1;
-                        Console.WriteLine("Found a link {0}", href);
+                        continue;
                     }
-                }
-                catch (ArgumentException)
-                {
+
+                    allDocumentationLinks += 1;
+                    documentationLinks.Add(href, false);
+                    newDocumentationLinks += 1;
+                    Console.WriteLine("Found a link {0}", href);
                 }
             }
 
@@ -281,8 +289,8 @@ namespace SteamDocsScraper
 
             // Remove values which would leak user's auth tokens etc.
 
-            string matchPattern = @"name: ""(token|token_secure|auth|steamid|webcookie)"", value: ""[A-Za-z0-9\[\]_\-\:]+""";
-            string replacementPattern = @"name: ""$1"", value: ""hunter2""";
+            const string matchPattern = @"name: ""(token|token_secure|auth|steamid|webcookie)"", value: ""[A-Za-z0-9\[\]_\-\:]+""";
+            const string replacementPattern = @"name: ""$1"", value: ""hunter2""";
             html = Regex.Replace(html, matchPattern, replacementPattern);
 
             Console.WriteLine("Saving {0}", file);
