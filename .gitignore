@@ -1,11 +1,11 @@
 settings.json
+chromedriver.exe
 
 [Bb]in/
 [Oo]bj/
 
-*.sln
 *.suo
-*.csproj
+*.userprefs
 *.user
 *.usr
 *.obj
