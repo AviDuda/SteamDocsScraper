@@ -209,7 +209,10 @@ namespace SteamDocsScraper
                 }
             }
 
-            Console.WriteLine("{0} links, {1} new.", allDocumentationLinks, newDocumentationLinks);
+            if (newDocumentationLinks > 0)
+            {
+                Console.WriteLine("Found {0} new links on this page.", newDocumentationLinks);
+            }
 
             return allDocumentationLinks > 0;
         }
