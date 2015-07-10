@@ -209,6 +209,7 @@ namespace SteamDocsScraper
                 {
                     href = Regex.Replace(href, "#.*", "");
                     href = Regex.Replace(href, "\\?l=[a-z]+$", "");
+                    href = href.Trim('/');
 
                     if (string.IsNullOrWhiteSpace(href) || documentationLinks.ContainsKey(href))
                     {
