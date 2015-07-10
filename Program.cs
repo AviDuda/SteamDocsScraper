@@ -19,6 +19,7 @@ namespace SteamDocsScraper
 
         // Key is the URL, value is if it was already fetched.
         static Dictionary<string, bool> documentationLinks = new Dictionary<string, bool>();
+        static List<string> cleanDocumentationLinks = new List<string>();
 
         static Dictionary<string, string> settings;
 
@@ -33,7 +34,7 @@ namespace SteamDocsScraper
 
             settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("settings.json"));
 
-            if (!settings.Keys.Contains("steamUsername") || settings["steamUsername"].Trim() == "" || !settings.Keys.Contains("steamPassword") || settings["steamPassword"].Trim() == "")
+            if (string.IsNullOrWhiteSpace(settings["steamUsername"]) || string.IsNullOrWhiteSpace(settings["steamPassword"]))
             {
                 throw new Exception("Please provide your Steam username and password in settings.json.");
             }
@@ -69,8 +70,16 @@ namespace SteamDocsScraper
                 {
                     foreach (string predefined in settings["predefinedDocs"].Split(','))
                     {
-                        documentationLinks.Add("https://partner.steamgames.com/documentation/" + predefined, false);
-                        GetDocumentationLinks(predefined);
+                        var key = "https://partner.steamgames.com/documentation/" + predefined;
+
+                        if (string.IsNullOrWhiteSpace(predefined) || documentationLinks.ContainsKey(key))
+                        {
+                            Console.WriteLine("Invalid or duplicate predefined doc: {0}", predefined);
+                            continue;
+                        }
+
+                        cleanDocumentationLinks.Add(predefined);
+                        documentationLinks.Add(key, false);
                     }
                 }
 
@@ -84,6 +93,10 @@ namespace SteamDocsScraper
             }
 
             driver.Quit();
+
+            settings["predefinedDocs"] = string.Join(",", cleanDocumentationLinks);
+
+            File.WriteAllText("settings.json", JsonConvert.SerializeObject(settings, Formatting.Indented));
 
             Console.WriteLine("Done.");
             Console.ReadLine();
@@ -140,7 +153,7 @@ namespace SteamDocsScraper
                 buttonLogin.Click();
             }
 
-            System.Threading.Thread.Sleep(4000);
+            new WebDriverWait(driver, TimeSpan.FromSeconds(5)).Until(ExpectedConditions.ElementIsVisible(By.CssSelector("#success_continue_btn, .avatar")));
 
             if (driver.ElementIsPresent(By.Id("success_continue_btn")) || driver.ElementIsPresent(By.ClassName("avatar")))
             {
@@ -197,7 +210,7 @@ namespace SteamDocsScraper
                     href = Regex.Replace(href, "#.*", "");
                     href = Regex.Replace(href, "\\?l=[a-z]+$", "");
 
-                    if (documentationLinks.ContainsKey(href))
+                    if (string.IsNullOrWhiteSpace(href) || documentationLinks.ContainsKey(href))
                     {
                         continue;
                     }
@@ -250,7 +263,9 @@ namespace SteamDocsScraper
                 documentationLinks[link] = true;
                 return;
             }
-            
+
+            cleanDocumentationLinks.Add(file);
+
             // Normal layout.
             var isAdminPage = driver.ElementIsPresent(By.ClassName("AdminPageContent"));
 
