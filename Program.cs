@@ -207,6 +207,8 @@ namespace SteamDocsScraper
                 // TODO: optimize this and remove double Regex.Replace
                 if (Regex.IsMatch(href, "//partner.steamgames.com/documentation/(?:(?!search|mail" + currentPage + ").*)/?$"))
                 {
+                    allDocumentationLinks += 1;
+
                     href = Regex.Replace(href, "#.*", "");
                     href = Regex.Replace(href, "\\?l=[a-z]+$", "");
                     href = href.Trim('/');
@@ -216,7 +218,6 @@ namespace SteamDocsScraper
                         continue;
                     }
 
-                    allDocumentationLinks += 1;
                     documentationLinks.Add(href, false);
                     newDocumentationLinks += 1;
                     Console.WriteLine("Found a link {0}", href);
