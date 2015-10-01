@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using OpenQA.Selenium;
@@ -13,6 +14,7 @@ namespace SteamDocsScraper
     class Program
     {
         static string directory = "docs";
+        static string directoryImgs;
 
         static bool signedIn = false;
         static int tries = 0;
@@ -46,12 +48,18 @@ namespace SteamDocsScraper
 
             driver = new ChromeDriver(options);
 
+            directoryImgs = Path.Combine(directory, "images");
+
             if (!Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }
-
-            Array.ForEach(Directory.GetFiles(directory, "*.html", SearchOption.TopDirectoryOnly), File.Delete);
+            else
+            {
+                Array.ForEach(Directory.GetFiles(directory, "*.html", SearchOption.TopDirectoryOnly), File.Delete);
+                Array.ForEach(Directory.GetFiles(directoryImgs, "*.png", SearchOption.TopDirectoryOnly), File.Delete);
+                Array.ForEach(Directory.GetFiles(directoryImgs, "*.jpg", SearchOption.TopDirectoryOnly), File.Delete);
+            }
 
             driver.Navigate().GoToUrl("https://partner.steamgames.com/");
 
@@ -266,7 +274,10 @@ namespace SteamDocsScraper
                 return;
             }
 
-            cleanDocumentationLinks.Add(file);
+            if (!cleanDocumentationLinks.Contains(file))
+            {
+                cleanDocumentationLinks.Add(file);
+            }
 
             // Normal layout.
             var isAdminPage = driver.ElementIsPresent(By.ClassName("AdminPageContent"));
@@ -274,7 +285,7 @@ namespace SteamDocsScraper
             // Some pages like https://partner.steamgames.com/documentation/mod_team use the old layout
             var isOldAdminPage = driver.ElementIsPresent(By.Id("leftAreaContainer"));
 
-            IWebElement content;
+            IWebElement content = null;
             string html = "";
 
             if (isAdminPage)
@@ -307,12 +318,54 @@ namespace SteamDocsScraper
                 }
             }
 
+            if (content != null)
+            {
+                var images = driver.FindElements(By.CssSelector("img"));
+
+                foreach (var img in images)
+                {
+                    if (img.GetAttribute("class") == "avatar")
+                    {
+                        continue;
+                    }
+
+                    var imgLink = img.GetAttribute("src");
+                    var imgFile = Path.Combine(directoryImgs, Path.GetFileName(imgLink));
+
+                    if (File.Exists(imgFile))
+                    {
+                        Console.WriteLine("Image already exists: {0}", imgFile);
+
+                        continue;
+                    }
+
+                    Console.WriteLine("Downloading image: {0}", imgFile);
+
+                    if (!Directory.Exists(Path.GetDirectoryName(imgFile)))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(imgFile));
+                    }
+
+                    using (var client = new WebClient())
+                    {
+                        try
+                        {
+                            client.DownloadFile(imgLink, imgFile);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e.Message);
+                        }
+                    }
+                }
+            }
+
             // Remove values which would leak user's auth tokens etc.
 
             const string matchPattern = @"name: ""(token|token_secure|auth|steamid|webcookie)"", value: ""[A-Za-z0-9\[\]_\-\:]+""";
             const string replacementPattern = @"name: ""$1"", value: ""hunter2""";
             html = Regex.Replace(html, matchPattern, replacementPattern);
-            html = html.Trim() + "\n";
+            html = html.TrimEnd() + Environment.NewLine;
 
             Console.WriteLine("Saving {0}", file);
             File.WriteAllText(Path.Combine(directory, file), html);
