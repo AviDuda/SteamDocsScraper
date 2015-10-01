@@ -312,6 +312,7 @@ namespace SteamDocsScraper
             const string matchPattern = @"name: ""(token|token_secure|auth|steamid|webcookie)"", value: ""[A-Za-z0-9\[\]_\-\:]+""";
             const string replacementPattern = @"name: ""$1"", value: ""hunter2""";
             html = Regex.Replace(html, matchPattern, replacementPattern);
+            html = html.Trim() + "\n";
 
             Console.WriteLine("Saving {0}", file);
             File.WriteAllText(Path.Combine(directory, file), html);
