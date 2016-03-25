@@ -59,6 +59,7 @@ namespace SteamDocsScraper
                 Array.ForEach(Directory.GetFiles(directory, "*.html", SearchOption.TopDirectoryOnly), File.Delete);
                 Array.ForEach(Directory.GetFiles(directoryImgs, "*.png", SearchOption.TopDirectoryOnly), File.Delete);
                 Array.ForEach(Directory.GetFiles(directoryImgs, "*.jpg", SearchOption.TopDirectoryOnly), File.Delete);
+                Array.ForEach(Directory.GetFiles(directoryImgs, "*.gif", SearchOption.TopDirectoryOnly), File.Delete);
             }
 
             driver.Navigate().GoToUrl("https://partner.steamgames.com/");
