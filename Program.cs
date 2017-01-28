@@ -46,69 +46,84 @@ namespace SteamDocsScraper
             options.AddArgument("--enable-file-cookies");
             options.AddArgument("--disable-cache");
 
-            driver = new ChromeDriver(options);
-
-            directoryImgs = Path.Combine(directory, "images");
-
-            if (!Directory.Exists(directory))
+            try
             {
-                Directory.CreateDirectory(directory);
-            }
-            else
-            {
-                Array.ForEach(Directory.GetFiles(directory, "*.html", SearchOption.TopDirectoryOnly), File.Delete);
-                Array.ForEach(Directory.GetFiles(directoryImgs, "*.png", SearchOption.TopDirectoryOnly), File.Delete);
-                Array.ForEach(Directory.GetFiles(directoryImgs, "*.jpg", SearchOption.TopDirectoryOnly), File.Delete);
-                Array.ForEach(Directory.GetFiles(directoryImgs, "*.gif", SearchOption.TopDirectoryOnly), File.Delete);
-            }
+                driver = new ChromeDriver(options);
 
-            driver.Navigate().GoToUrl("https://partner.steamgames.com/");
+                directoryImgs = Path.Combine(directory, "images");
 
-            if (driver.ElementIsPresent(By.ClassName("avatar")))
-            {
-                signedIn = true;
-            }
-            else
-            {
-                Login();
-            }
-
-            if (signedIn)
-            {
-                if (settings.Keys.Contains("predefinedDocs"))
+                if (!Directory.Exists(directory))
                 {
-                    foreach (string predefined in settings["predefinedDocs"].Split(','))
-                    {
-                        var key = "https://partner.steamgames.com/documentation/" + predefined;
-
-                        if (string.IsNullOrWhiteSpace(predefined) || documentationLinks.ContainsKey(key))
-                        {
-                            Console.WriteLine("Invalid or duplicate predefined doc: {0}", predefined);
-                            continue;
-                        }
-
-                        cleanDocumentationLinks.Add(predefined);
-                        documentationLinks.Add(key, false);
-                    }
+                    Directory.CreateDirectory(directory);
+                }
+                else
+                {
+                    Array.ForEach(Directory.GetFiles(directory, "*.html", SearchOption.TopDirectoryOnly), File.Delete);
                 }
 
-                driver.Navigate().GoToUrl("https://partner.steamgames.com/home/steamworks");
+                if (!Directory.Exists(directoryImgs))
+                {
+                    Directory.CreateDirectory(directoryImgs);
+                }
+                else
+                {
+                    Array.ForEach(Directory.GetFiles(directoryImgs, "*.png", SearchOption.TopDirectoryOnly), File.Delete);
+                    Array.ForEach(Directory.GetFiles(directoryImgs, "*.jpg", SearchOption.TopDirectoryOnly), File.Delete);
+                    Array.ForEach(Directory.GetFiles(directoryImgs, "*.gif", SearchOption.TopDirectoryOnly), File.Delete);
+                }
 
-                GetDocumentationLinks();
+                driver.Navigate().GoToUrl("https://partner.steamgames.com/");
 
-                AddFromSearchResults();
+                if (driver.ElementIsPresent(By.ClassName("avatar")))
+                {
+                    signedIn = true;
+                }
+                else
+                {
+                    Login();
+                }
 
-                FetchLinks();
+                if (signedIn)
+                {
+                    if (settings.Keys.Contains("predefinedDocs"))
+                    {
+                        foreach (string predefined in settings["predefinedDocs"].Split(','))
+                        {
+                            var key = "https://partner.steamgames.com/documentation/" + predefined;
+
+                            if (string.IsNullOrWhiteSpace(predefined) || documentationLinks.ContainsKey(key))
+                            {
+                                Console.WriteLine("Invalid or duplicate predefined doc: {0}", predefined);
+                                continue;
+                            }
+
+                            cleanDocumentationLinks.Add(predefined);
+                            documentationLinks.Add(key, false);
+                        }
+                    }
+
+                    driver.Navigate().GoToUrl("https://partner.steamgames.com/home/steamworks");
+
+                    GetDocumentationLinks();
+
+                    AddFromSearchResults();
+
+                    FetchLinks();
+                }
             }
-
-            driver.Quit();
+            finally
+            {
+                if (driver != null)
+                {
+                    driver.Quit();
+                }
+            }
 
             settings["predefinedDocs"] = string.Join(",", cleanDocumentationLinks);
 
             File.WriteAllText("settings.json", JsonConvert.SerializeObject(settings, Formatting.Indented));
 
             Console.WriteLine("Done.");
-            Console.ReadLine();
         }
 
         static void Login()
@@ -116,18 +131,19 @@ namespace SteamDocsScraper
             new WebDriverWait(driver, TimeSpan.FromSeconds(10)).Until(ExpectedConditions.ElementIsVisible(By.Id("login_btn_signin")));
 
             var needsSteamGuard = driver.ElementIsPresent(By.Id("authcode"));
+            Console.Write(needsSteamGuard);
 
             if (needsSteamGuard)
             {
+                var friendlyName = driver.FindElementById("friendlyname");
+                friendlyName.SendKeys("SteamDocsScraper");
+
                 var fieldEmailAuth = driver.FindElementById("authcode");
                 fieldEmailAuth.Clear();
 
-                Console.WriteLine("Please insert a Steam Guard code.");
+                Console.Write("Please insert a Steam Guard code: ");
                 string steamGuard = Console.ReadLine();
                 fieldEmailAuth.SendKeys(steamGuard);
-
-                var friendlyName = driver.FindElementById("friendlyname");
-                friendlyName.SendKeys("SteamDocsScraper");
 
                 var submitButton = driver.FindElementByCssSelector("#auth_buttonset_entercode .leftbtn");
 
@@ -162,7 +178,14 @@ namespace SteamDocsScraper
                 buttonLogin.Click();
             }
 
-            new WebDriverWait(driver, TimeSpan.FromSeconds(5)).Until(ExpectedConditions.ElementIsVisible(By.CssSelector("#success_continue_btn, .avatar")));
+            try
+            {
+                new WebDriverWait(driver, TimeSpan.FromSeconds(5)).Until(ExpectedConditions.ElementIsVisible(By.CssSelector("#authcode_entry, #success_continue_btn, .avatar")));
+            }
+            catch (WebDriverTimeoutException)
+            {
+                // what
+            }
 
             if (driver.ElementIsPresent(By.Id("success_continue_btn")) || driver.ElementIsPresent(By.ClassName("avatar")))
             {
