@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
+using TidyManaged;
 
 namespace SteamDocsScraper
 {
@@ -50,7 +51,7 @@ namespace SteamDocsScraper
             options.AddArgument("--enable-file-cookies");
             options.AddArgument("--disable-cache");
 
-            LinkMatch = new Regex(@"//partner\.steamgames\.com/documentation/(?<href>(?!search|mail).+?)(?=#|/|\?l=|$)", RegexOptions.Compiled);
+            LinkMatch = new Regex(@"//partner\.steamgames\.com/doc/(?<href>.+?)(?=#|\?|$)", RegexOptions.Compiled);
 
             directoryImgs = Path.Combine(directory, "images");
 
@@ -60,7 +61,7 @@ namespace SteamDocsScraper
             }
             else
             {
-                Array.ForEach(Directory.GetFiles(directory, "*.html", SearchOption.TopDirectoryOnly), File.Delete);
+                Array.ForEach(Directory.GetFiles(directory, "*.html"), File.Delete);
             }
 
             if (!Directory.Exists(directoryImgs))
@@ -110,7 +111,7 @@ namespace SteamDocsScraper
                         }
                     }
 
-                    driver.Navigate().GoToUrl("https://partner.steamgames.com/home/steamworks");
+                    driver.Navigate().GoToUrl("https://partner.steamgames.com/doc/home");
 
                     GetDocumentationLinks();
 
@@ -215,10 +216,10 @@ namespace SteamDocsScraper
                     int start = 0;
                     do
                     {
-                        string url = "https://partner.steamgames.com/documentation/search?query=" + query + "&start=" + start;
+                        string url = "https://partner.steamgames.com/doc?q=" + query + "&start=" + start;
                         Console.WriteLine("> Searching {0}", url);
                         driver.Navigate().GoToUrl(url);
-                        start += 10;
+                        start += 20;
                     } while (GetDocumentationLinks());
                 }
             }
@@ -227,8 +228,7 @@ namespace SteamDocsScraper
         static bool GetDocumentationLinks()
         {
             var links = driver.FindElementsByTagName("a");
-            var found = false;
-
+            
             foreach (var link in links)
             {
                 var href = link.GetAttribute("href") ?? string.Empty;
@@ -236,8 +236,6 @@ namespace SteamDocsScraper
 
                 if (match.Success)
                 {
-                    found = true;
-
                     href = match.Groups["href"].Value;
 
                     if (string.IsNullOrWhiteSpace(href) || documentationLinks.ContainsKey(href))
@@ -252,8 +250,8 @@ namespace SteamDocsScraper
                     Console.ResetColor();
                 }
             }
-
-            return found;
+            
+            return driver.ElementIsPresent(By.ClassName("docSearchResultLink"));
         }
 
         static void FetchLinks()
@@ -273,39 +271,45 @@ namespace SteamDocsScraper
         static void SaveDocumentation(string link)
         {
             Console.WriteLine("{1}> Navigating to {0}", link, Environment.NewLine);
-            driver.Navigate().GoToUrl("https://partner.steamgames.com/documentation/" + link);
-
-            // API Overview page is showing if the docs page doesn't exist
-            var isDefaultPage = (link != "api" && driver.ElementIsPresent(By.Id("landingWelcome")) && driver.FindElementById("landingWelcome").Text == "API overview");
-
-            if (isDefaultPage)
-            {
-                Console.WriteLine(" > Default page");
-                documentationLinks[link] = true;
-                return;
-            }
-
+            driver.Navigate().GoToUrl("https://partner.steamgames.com/doc/" + link);
+            
             var file = link;
 
             // Normal layout.
-            var isAdminPage = driver.ElementIsPresent(By.ClassName("AdminPageContent"));
-
-            // Some pages like https://partner.steamgames.com/documentation/mod_team use the old layout
-            var isOldAdminPage = driver.ElementIsPresent(By.Id("leftAreaContainer"));
+            var isAdminPage = driver.ElementIsPresent(By.ClassName("documentation_bbcode"));
 
             IWebElement content = null;
             string html = string.Empty;
 
             if (isAdminPage)
             {
-                content = driver.FindElementByClassName("AdminPageContent");
+                content = driver.FindElementByClassName("documentation_bbcode");
                 html = content.GetAttribute("innerHTML");
-                file += ".html";
-            }
-            else if (isOldAdminPage)
-            {
-                content = driver.FindElementById("leftAreaContainer");
-                html = content.GetAttribute("innerHTML");
+
+                if (driver.ElementIsPresent(By.ClassName("docPageTitle")))
+                {
+                    html = driver.FindElementByClassName("docPageTitle").GetAttribute("innerHTML") + "\n" + html;
+                }
+
+                using (Document doc = Document.FromString(html))
+                {
+                    doc.WrapAt = 0;
+                    doc.OutputBodyOnly = AutoBool.Yes;
+                    doc.IndentBlockElements = AutoBool.Yes;
+                    doc.IndentSpaces = 4;
+                    doc.ShowWarnings = false;
+                    doc.Quiet = true;
+                    doc.CleanAndRepair();
+                    html = doc.Save();
+                }
+
+                if (html.Contains("Welcome to Steamworks!"))
+                {
+                    Console.WriteLine(" > Does not exist");
+                    documentationLinks[link] = true;
+                    return;
+                }
+
                 file += ".html";
             }
             else
@@ -313,17 +317,21 @@ namespace SteamDocsScraper
                 // Unknown content. Save to a file.
                 Console.WriteLine(" > Unknown content");
 
+#if false
                 if (driver.ElementIsPresent(By.XPath("/html/body/pre")))
                 {
                     // text/plain or something similar
                     content = driver.FindElementByXPath("/html/body/pre");
                     html = content.GetAttribute("innerHTML");
+                    file += ".txt";
                 }
                 else
                 {
                     // HTML files, hopefully. Let's hope you won't see HTML tags where you shouldn't.
                     html = driver.PageSource;
+                    file += ".html";
                 }
+#endif
             }
 
             if (content != null)
@@ -385,7 +393,17 @@ namespace SteamDocsScraper
             html = Regex.Replace(html, matchPattern, replacementPattern);
             html = html.TrimEnd() + Environment.NewLine;
 
-            File.WriteAllText(Path.Combine(directory, file), html);
+            file = Path.Combine(directory, file);
+            var folder = Path.GetDirectoryName(file);
+
+            Console.WriteLine(folder);
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            File.WriteAllText(file, html);
             documentationLinks[link] = true;
 
             Console.WriteLine(" > Saved");
