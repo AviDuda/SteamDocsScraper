@@ -12,106 +12,101 @@ using TidyManaged;
 
 namespace SteamDocsScraper
 {
-    class Program
+    static class Program
     {
-        static string directory = "docs";
-        static string directoryImgs;
-
-        static bool signedIn = false;
-        static int tries = 0;
+        private static string _docsDirectory;
+        private static string _imgsDirectory;
+        private static bool _signedIn;
+        private static int _loginTries;
 
         // Key is the URL, value is if it was already fetched.
-        static Dictionary<string, bool> documentationLinks = new Dictionary<string, bool>();
+        private static readonly Dictionary<string, bool> DocumentationLinks = new Dictionary<string, bool>();
+        private static Dictionary<string, string> _settings;
+        private static ChromeDriver _chromeDriver;
+        private static Regex _linkMatch;
 
-        static Dictionary<string, string> settings;
-
-        static ChromeDriver driver { get; set; }
-
-        static Regex LinkMatch;
-
-        static void Main()
+        private static void Main()
         {
             Console.ResetColor();
             Console.Title = "Steam Documentation Scraper";
+
+            _docsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "docs");
 
             if (!File.Exists("settings.json"))
             {
                 throw new Exception("settings.json file doesn't exist.");
             }
 
-            settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("settings.json"));
+            _settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("settings.json"));
 
-            if (string.IsNullOrWhiteSpace(settings["steamUsername"]) || string.IsNullOrWhiteSpace(settings["steamPassword"]))
+            if (string.IsNullOrWhiteSpace(_settings["steamUsername"]) || string.IsNullOrWhiteSpace(_settings["steamPassword"]))
             {
                 throw new Exception("Please provide your Steam username and password in settings.json.");
             }
 
             var options = new ChromeOptions();
-            options.AddArgument(string.Format("--user-data-dir={0}", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userdata")));
+            options.AddArgument($"--user-data-dir={Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userdata")}");
             options.AddArgument("--enable-file-cookies");
             options.AddArgument("--disable-cache");
 
-            LinkMatch = new Regex(@"//partner\.steamgames\.com/doc/(?<href>.+?)(?=#|\?|$)", RegexOptions.Compiled);
+            _linkMatch = new Regex(@"//partner\.steamgames\.com/doc/(?<href>.+?)(?=#|\?|$)", RegexOptions.Compiled);
 
-            directoryImgs = Path.Combine(directory, "images");
+            _imgsDirectory = Path.Combine(_docsDirectory, "images");
 
-            if (!Directory.Exists(directory))
+            if (!Directory.Exists(_docsDirectory))
             {
-                Directory.CreateDirectory(directory);
+                Directory.CreateDirectory(_docsDirectory);
             }
             else
             {
-                Array.ForEach(Directory.GetFiles(directory, "*.html"), File.Delete);
+                Array.ForEach(Directory.GetFiles(_docsDirectory, "*.html"), File.Delete);
             }
 
-            if (!Directory.Exists(directoryImgs))
+            if (!Directory.Exists(_imgsDirectory))
             {
-                Directory.CreateDirectory(directoryImgs);
+                Directory.CreateDirectory(_imgsDirectory);
             }
             else
             {
-                Array.ForEach(Directory.GetFiles(directoryImgs, "*.png", SearchOption.TopDirectoryOnly), File.Delete);
-                Array.ForEach(Directory.GetFiles(directoryImgs, "*.jpg", SearchOption.TopDirectoryOnly), File.Delete);
-                Array.ForEach(Directory.GetFiles(directoryImgs, "*.gif", SearchOption.TopDirectoryOnly), File.Delete);
+                Array.ForEach(Directory.GetFiles(_imgsDirectory, "*.png", SearchOption.TopDirectoryOnly), File.Delete);
+                Array.ForEach(Directory.GetFiles(_imgsDirectory, "*.jpg", SearchOption.TopDirectoryOnly), File.Delete);
+                Array.ForEach(Directory.GetFiles(_imgsDirectory, "*.gif", SearchOption.TopDirectoryOnly), File.Delete);
             }
 
             try
             {
-                driver = new ChromeDriver(options);
+                _chromeDriver = new ChromeDriver(options);
 
-                Console.CancelKeyPress += delegate
+                Console.CancelKeyPress += delegate { _chromeDriver.Quit(); };
+
+                _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/");
+
+                if (_chromeDriver.ElementIsPresent(By.ClassName("avatar")))
                 {
-                    driver.Quit();
-                };
-
-                driver.Navigate().GoToUrl("https://partner.steamgames.com/");
-
-                if (driver.ElementIsPresent(By.ClassName("avatar")))
-                {
-                    signedIn = true;
+                    _signedIn = true;
                 }
                 else
                 {
                     Login();
                 }
 
-                if (signedIn)
+                if (_signedIn)
                 {
-                    if (settings.Keys.Contains("predefinedDocs"))
+                    if (_settings.Keys.Contains("predefinedDocs"))
                     {
-                        foreach (string key in settings["predefinedDocs"].Split(','))
+                        foreach (var key in _settings["predefinedDocs"].Split(','))
                         {
-                            if (string.IsNullOrWhiteSpace(key) || documentationLinks.ContainsKey(key))
+                            if (string.IsNullOrWhiteSpace(key) || DocumentationLinks.ContainsKey(key))
                             {
                                 Console.WriteLine("Invalid or duplicate predefined doc: {0}", key);
                                 continue;
                             }
 
-                            documentationLinks.Add(key, false);
+                            DocumentationLinks.Add(key, false);
                         }
                     }
 
-                    driver.Navigate().GoToUrl("https://partner.steamgames.com/doc/home");
+                    _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/doc/home");
 
                     GetDocumentationLinks();
 
@@ -122,65 +117,62 @@ namespace SteamDocsScraper
             }
             finally
             {
-                if (driver != null)
-                {
-                    driver.Quit();
-                }
+                _chromeDriver?.Quit();
             }
 
-            settings["predefinedDocs"] = string.Join(",", documentationLinks.Keys.OrderBy(x => x));
+            _settings["predefinedDocs"] = string.Join(",", DocumentationLinks.Keys.OrderBy(x => x));
 
-            File.WriteAllText("settings.json", JsonConvert.SerializeObject(settings, Formatting.Indented));
+            File.WriteAllText("settings.json", JsonConvert.SerializeObject(_settings, Formatting.Indented));
 
             Console.WriteLine("Done.");
             Console.ReadKey();
         }
 
-        static void Login()
+        private static void Login()
         {
-            new WebDriverWait(driver, TimeSpan.FromSeconds(10)).Until(ExpectedConditions.ElementIsVisible(By.Id("login_btn_signin")));
+            new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(10)).Until(ExpectedConditions.ElementIsVisible(By.Id("login_btn_signin")));
 
-            var needsSteamGuard = driver.ElementIsPresent(By.Id("authcode"));
+            var needsSteamGuard = _chromeDriver.ElementIsPresent(By.Id("authcode"));
 
             if (needsSteamGuard)
             {
-                var friendlyName = driver.FindElementById("friendlyname");
+                var friendlyName = _chromeDriver.FindElementById("friendlyname");
                 friendlyName.SendKeys("SteamDocsScraper");
 
-                var fieldEmailAuth = driver.FindElementById("authcode");
+                var fieldEmailAuth = _chromeDriver.FindElementById("authcode");
                 fieldEmailAuth.Clear();
 
                 Console.Write("Please insert a Steam Guard code: ");
-                string steamGuard = Console.ReadLine();
+                var steamGuard = Console.ReadLine();
                 fieldEmailAuth.SendKeys(steamGuard);
 
-                var submitButton = driver.FindElementByCssSelector("#auth_buttonset_entercode .leftbtn");
+                var submitButton = _chromeDriver.FindElementByCssSelector("#auth_buttonset_entercode .leftbtn");
 
                 if (!submitButton.Displayed)
                 {
-                    submitButton = driver.FindElementByCssSelector("#auth_buttonset_incorrectcode .leftbtn");
+                    submitButton = _chromeDriver.FindElementByCssSelector("#auth_buttonset_incorrectcode .leftbtn");
                 }
 
                 submitButton.Click();
             }
             else
             {
-                var fieldAccountName = driver.FindElementById("steamAccountName");
-                var fieldSteamPassword = driver.FindElementById("steamPassword");
-                var buttonLogin = driver.FindElementById("login_btn_signin");
+                var fieldAccountName = _chromeDriver.FindElementById("steamAccountName");
+                var fieldSteamPassword = _chromeDriver.FindElementById("steamPassword");
+                var buttonLogin = _chromeDriver.FindElementById("login_btn_signin");
 
                 fieldAccountName.Clear();
-                fieldAccountName.SendKeys(settings["steamUsername"]);
+                fieldAccountName.SendKeys(_settings["steamUsername"]);
                 fieldSteamPassword.Clear();
-                fieldSteamPassword.SendKeys(settings["steamPassword"]);
+                fieldSteamPassword.SendKeys(_settings["steamPassword"]);
 
-                if (driver.ElementIsPresent(By.Id("input_captcha")))
+                if (_chromeDriver.ElementIsPresent(By.Id("input_captcha")))
                 {
-                    var fieldCaptcha = driver.FindElementById("input_captcha");
+                    var fieldCaptcha = _chromeDriver.FindElementById("input_captcha");
                     fieldCaptcha.Clear();
 
                     Console.Write("Please enter captcha: ");
-                    string captcha = Console.ReadLine();
+                    var captcha = Console.ReadLine();
                     fieldCaptcha.SendKeys(captcha);
                 }
 
@@ -189,75 +181,80 @@ namespace SteamDocsScraper
 
             try
             {
-                new WebDriverWait(driver, TimeSpan.FromSeconds(5)).Until(ExpectedConditions.ElementIsVisible(By.CssSelector("#authcode_entry, #success_continue_btn, .avatar")));
+                new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(5)).Until(ExpectedConditions.ElementIsVisible(By.CssSelector("#authcode_entry, #success_continue_btn, .avatar")));
             }
             catch (WebDriverTimeoutException)
             {
                 // what
             }
 
-            if (driver.ElementIsPresent(By.Id("success_continue_btn")) || driver.ElementIsPresent(By.ClassName("avatar")))
+            if (_chromeDriver.ElementIsPresent(By.Id("success_continue_btn")) || _chromeDriver.ElementIsPresent(By.ClassName("avatar")))
             {
-                signedIn = true;
+                _signedIn = true;
             }
-            else if (tries < 3)
+            else if (_loginTries < 3)
             {
-                tries++;
+                _loginTries++;
                 Login();
             }
         }
 
-        static void AddFromSearchResults()
+        private static void AddFromSearchResults()
         {
-            if (settings.Keys.Contains("searchQueries"))
+            if (!_settings.Keys.Contains("searchQueries"))
             {
-                foreach (string query in settings["searchQueries"].Split(','))
+                return;
+            }
+
+            foreach (var query in _settings["searchQueries"].Split(','))
+            {
+                var start = 0;
+                do
                 {
-                    int start = 0;
-                    do
-                    {
-                        string url = "https://partner.steamgames.com/doc?q=" + query + "&start=" + start;
-                        Console.WriteLine("> Searching {0}", url);
-                        driver.Navigate().GoToUrl(url);
-                        start += 20;
-                    } while (GetDocumentationLinks());
+                    var url = "https://partner.steamgames.com/doc?q=" + query + "&start=" + start;
+                    Console.WriteLine($"> Searching {url}");
+                    _chromeDriver.Navigate().GoToUrl(url);
+                    start += 20;
                 }
+                while (GetDocumentationLinks());
             }
         }
 
-        static bool GetDocumentationLinks()
+        private static bool GetDocumentationLinks()
         {
-            var links = driver.FindElementsByTagName("a");
-            
+            var links = _chromeDriver.FindElementsByTagName("a");
+
             foreach (var link in links)
             {
                 var href = link.GetAttribute("href") ?? string.Empty;
-                var match = LinkMatch.Match(href);
+                var match = _linkMatch.Match(href);
 
-                if (match.Success)
+                if (!match.Success)
                 {
-                    href = match.Groups["href"].Value;
-
-                    if (string.IsNullOrWhiteSpace(href) || documentationLinks.ContainsKey(href))
-                    {
-                        continue;
-                    }
-
-                    documentationLinks.Add(href, false);
-
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine(" > Found a link: {0}", href);
-                    Console.ResetColor();
+                    continue;
                 }
+
+                href = match.Groups["href"].Value;
+
+                if (string.IsNullOrWhiteSpace(href) || DocumentationLinks.ContainsKey(href))
+                {
+                    continue;
+                }
+
+                DocumentationLinks.Add(href, false);
+
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($" > Found a link: {href}");
+                Console.ResetColor();
             }
-            
-            return driver.ElementIsPresent(By.ClassName("docSearchResultLink"));
+
+            return _chromeDriver.ElementIsPresent(By.ClassName("docSearchResultLink"));
         }
 
-        static void FetchLinks()
+        private static void FetchLinks()
         {
             IEnumerable<KeyValuePair<string, bool>> links;
-            while ((links = documentationLinks.Where(l => l.Value == false).ToArray()).Any())
+            while ((links = DocumentationLinks.Where(l => l.Value == false).ToArray()).Any())
             {
                 foreach (var link in links)
                 {
@@ -268,30 +265,30 @@ namespace SteamDocsScraper
             }
         }
 
-        static void SaveDocumentation(string link)
+        private static void SaveDocumentation(string link)
         {
-            Console.WriteLine("{1}> Navigating to {0}", link, Environment.NewLine);
-            driver.Navigate().GoToUrl("https://partner.steamgames.com/doc/" + link);
-            
+            Console.WriteLine($"{Environment.NewLine}> Navigating to {link}");
+            _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/doc/" + link);
+
             var file = link;
 
             // Normal layout.
-            var isAdminPage = driver.ElementIsPresent(By.ClassName("documentation_bbcode"));
+            var isAdminPage = _chromeDriver.ElementIsPresent(By.ClassName("documentation_bbcode"));
 
             IWebElement content = null;
-            string html = string.Empty;
+            var html = string.Empty;
 
             if (isAdminPage)
             {
-                content = driver.FindElementByClassName("documentation_bbcode");
+                content = _chromeDriver.FindElementByClassName("documentation_bbcode");
                 html = content.GetAttribute("innerHTML");
 
-                if (driver.ElementIsPresent(By.ClassName("docPageTitle")))
+                if (_chromeDriver.ElementIsPresent(By.ClassName("docPageTitle")))
                 {
-                    html = driver.FindElementByClassName("docPageTitle").GetAttribute("innerHTML") + "\n" + html;
+                    html = _chromeDriver.FindElementByClassName("docPageTitle").GetAttribute("innerHTML") + "\n" + html;
                 }
 
-                using (Document doc = Document.FromString(html))
+                using (var doc = Document.FromString(html))
                 {
                     doc.WrapAt = 0;
                     doc.OutputBodyOnly = AutoBool.Yes;
@@ -306,7 +303,7 @@ namespace SteamDocsScraper
                 if (html.Contains("Welcome to Steamworks!"))
                 {
                     Console.WriteLine(" > Does not exist");
-                    documentationLinks[link] = true;
+                    DocumentationLinks[link] = true;
                     return;
                 }
 
@@ -316,27 +313,11 @@ namespace SteamDocsScraper
             {
                 // Unknown content. Save to a file.
                 Console.WriteLine(" > Unknown content");
-
-#if false
-                if (driver.ElementIsPresent(By.XPath("/html/body/pre")))
-                {
-                    // text/plain or something similar
-                    content = driver.FindElementByXPath("/html/body/pre");
-                    html = content.GetAttribute("innerHTML");
-                    file += ".txt";
-                }
-                else
-                {
-                    // HTML files, hopefully. Let's hope you won't see HTML tags where you shouldn't.
-                    html = driver.PageSource;
-                    file += ".html";
-                }
-#endif
             }
 
             if (content != null)
             {
-                var images = driver.FindElements(By.CssSelector("img"));
+                var images = _chromeDriver.FindElements(By.CssSelector("img"));
 
                 foreach (var img in images)
                 {
@@ -346,7 +327,7 @@ namespace SteamDocsScraper
                     }
 
                     var imgLink = img.GetAttribute("src");
-                    var imgFile = Path.Combine(directoryImgs, Path.GetFileName(imgLink));
+                    var imgFile = Path.Combine(_imgsDirectory, Path.GetFileName(imgLink));
 
                     var index = imgFile.IndexOf("?", StringComparison.Ordinal);
                     if (index != -1)
@@ -393,10 +374,11 @@ namespace SteamDocsScraper
             html = Regex.Replace(html, matchPattern, replacementPattern);
             html = html.TrimEnd() + Environment.NewLine;
 
-            file = Path.Combine(directory, file);
+            file = file.TrimStart(Path.DirectorySeparatorChar);
+            file = Path.Combine(_docsDirectory, file);
             var folder = Path.GetDirectoryName(file);
 
-            Console.WriteLine(folder);
+            Console.WriteLine(file);
 
             if (!Directory.Exists(folder))
             {
@@ -404,7 +386,7 @@ namespace SteamDocsScraper
             }
 
             File.WriteAllText(file, html);
-            documentationLinks[link] = true;
+            DocumentationLinks[link] = true;
 
             Console.WriteLine(" > Saved");
         }
