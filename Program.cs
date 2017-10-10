@@ -374,6 +374,13 @@ namespace SteamDocsScraper
             html = Regex.Replace(html, matchPattern, replacementPattern);
             html = html.TrimEnd() + Environment.NewLine;
 
+            file = file.Replace('\\', '/');
+
+            if (Path.DirectorySeparatorChar != '/')
+            {
+                file = file.Replace('/', Path.DirectorySeparatorChar);
+            }
+            
             file = file.TrimStart(Path.DirectorySeparatorChar);
             file = Path.Combine(_docsDirectory, file);
             var folder = Path.GetDirectoryName(file);
