@@ -11,3 +11,4 @@ chromedriver.exe
 *.obj
 
 packages/
+.vs/
