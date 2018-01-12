@@ -226,7 +226,18 @@ namespace SteamDocsScraper
 
             foreach (var link in links)
             {
-                var href = link.GetAttribute("href") ?? string.Empty;
+                string href;
+
+                try
+                {
+                    href = link.GetAttribute("href") ?? string.Empty;
+                }
+                catch (WebDriverException e)
+                {
+                    Console.WriteLine(e);
+                    continue;
+                }
+                
                 var match = _linkMatch.Match(href);
 
                 if (!match.Success)
