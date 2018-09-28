@@ -146,13 +146,7 @@ namespace SteamDocsScraper
                 var steamGuard = Console.ReadLine();
                 fieldEmailAuth.SendKeys(steamGuard);
 
-                var submitButton = _chromeDriver.FindElementByCssSelector("#auth_buttonset_entercode .leftbtn");
-
-                if (!submitButton.Displayed)
-                {
-                    submitButton = _chromeDriver.FindElementByCssSelector("#auth_buttonset_incorrectcode .leftbtn");
-                }
-
+                var submitButton = _chromeDriver.FindElementByCssSelector("#auth_buttonsets .auth_button");
                 submitButton.Click();
             }
             else
@@ -181,7 +175,25 @@ namespace SteamDocsScraper
 
             try
             {
-                new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(5)).Until(ExpectedConditions.ElementIsVisible(By.CssSelector("#authcode_entry, #success_continue_btn, .avatar")));
+                var wait = new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(5));
+                wait.Until(condition =>
+                {
+                    try
+                    {
+                        var successButton = _chromeDriver.FindElement(By.Id("success_continue_btn"));
+                        var avatar = _chromeDriver.FindElement(By.ClassName("avatar"));
+
+                        return successButton.Displayed || avatar.Displayed;
+                    }
+                    catch (StaleElementReferenceException)
+                    {
+                        return false;
+                    }
+                    catch (NoSuchElementException)
+                    {
+                        return false;
+                    }
+                });
             }
             catch (WebDriverTimeoutException)
             {
