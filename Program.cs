@@ -131,7 +131,17 @@ namespace SteamDocsScraper
 
         private static void Login()
         {
-            new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(10)).Until(ExpectedConditions.ElementIsVisible(By.Id("login_btn_signin")));
+            new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(10)).Until(condition =>
+            {
+                try
+                {
+                    return _chromeDriver.FindElement(By.Id("login_btn_signin")).Displayed;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
 
             var needsSteamGuard = _chromeDriver.ElementIsPresent(By.Id("authcode"));
 
