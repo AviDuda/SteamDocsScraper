@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using OpenQA.Selenium;
@@ -249,7 +250,7 @@ namespace SteamDocsScraper
                     Console.WriteLine(e);
                     continue;
                 }
-                
+
                 var match = _linkMatch.Match(href);
 
                 if (!match.Success)
@@ -311,7 +312,9 @@ namespace SteamDocsScraper
                     html = _chromeDriver.FindElementByClassName("docPageTitle").GetAttribute("innerHTML") + "\n" + html;
                 }
 
-                using (var doc = Document.FromString(html))
+                // Using stream because Document.FromString breaks encoding
+                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(html)))
+                using (var doc = Document.FromStream(stream))
                 {
                     doc.WrapAt = 0;
                     doc.OutputBodyOnly = AutoBool.Yes;
@@ -403,7 +406,7 @@ namespace SteamDocsScraper
             {
                 file = file.Replace('/', Path.DirectorySeparatorChar);
             }
-            
+
             file = file.TrimStart(Path.DirectorySeparatorChar);
             file = Path.Combine(_docsDirectory, file);
             var folder = Path.GetDirectoryName(file);
@@ -415,7 +418,7 @@ namespace SteamDocsScraper
                 Directory.CreateDirectory(folder);
             }
 
-            File.WriteAllText(file, html);
+            File.WriteAllText(file, html, Encoding.UTF8);
             DocumentationLinks[link] = true;
 
             Console.WriteLine(" > Saved");
