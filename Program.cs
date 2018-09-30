@@ -260,6 +260,9 @@ namespace SteamDocsScraper
 
                 href = match.Groups["href"].Value;
 
+                // Fix for some broken links
+                href = href.Replace("%3Fbeta%3D1", "");
+
                 if (string.IsNullOrWhiteSpace(href) || DocumentationLinks.ContainsKey(href))
                 {
                     continue;
