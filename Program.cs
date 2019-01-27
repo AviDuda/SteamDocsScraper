@@ -54,25 +54,14 @@ namespace SteamDocsScraper
 
             _imgsDirectory = Path.Combine(_docsDirectory, "images");
 
-            if (!Directory.Exists(_docsDirectory))
+            if (Directory.Exists(_docsDirectory))
             {
-                Directory.CreateDirectory(_docsDirectory);
-            }
-            else
-            {
-                Array.ForEach(Directory.GetFiles(_docsDirectory, "*.html"), File.Delete);
+                Console.WriteLine($"Deleting existing folder: {_docsDirectory}");
+                Directory.Delete(_docsDirectory, true);
             }
 
-            if (!Directory.Exists(_imgsDirectory))
-            {
-                Directory.CreateDirectory(_imgsDirectory);
-            }
-            else
-            {
-                Array.ForEach(Directory.GetFiles(_imgsDirectory, "*.png", SearchOption.TopDirectoryOnly), File.Delete);
-                Array.ForEach(Directory.GetFiles(_imgsDirectory, "*.jpg", SearchOption.TopDirectoryOnly), File.Delete);
-                Array.ForEach(Directory.GetFiles(_imgsDirectory, "*.gif", SearchOption.TopDirectoryOnly), File.Delete);
-            }
+            Directory.CreateDirectory(_docsDirectory);
+            Directory.CreateDirectory(_imgsDirectory);
 
             try
             {
