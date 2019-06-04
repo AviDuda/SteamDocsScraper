@@ -16,7 +16,6 @@ namespace SteamDocsScraper
     static class Program
     {
         private static string _docsDirectory;
-        private static string _imgsDirectory;
         private static bool _signedIn;
         private static int _loginTries;
 
@@ -52,8 +51,6 @@ namespace SteamDocsScraper
 
             _linkMatch = new Regex(@"//partner\.steamgames\.com/doc/(?<href>.+?)(?=#|\?|$)", RegexOptions.Compiled);
 
-            _imgsDirectory = Path.Combine(_docsDirectory, "images");
-
             if (Directory.Exists(_docsDirectory))
             {
                 Console.WriteLine($"Deleting existing folder: {_docsDirectory}");
@@ -61,7 +58,6 @@ namespace SteamDocsScraper
             }
 
             Directory.CreateDirectory(_docsDirectory);
-            Directory.CreateDirectory(_imgsDirectory);
 
             try
             {
@@ -367,27 +363,22 @@ namespace SteamDocsScraper
 
                 foreach (var img in images)
                 {
-                    var imgLink = img.GetAttribute("src");
+                    var imgLink = new Uri(img.GetAttribute("src"));
 
-                    if (imgLink.Contains("/steamcommunity/public/images/avatars/"))
+                    if (imgLink.AbsolutePath.StartsWith("/steamcommunity/public/images/avatars/"))
                     {
                         continue;
                     }
 
-                    var imgFile = Path.Combine(_imgsDirectory, Path.GetFileName(imgLink));
-
-                    var index = imgFile.IndexOf("?", StringComparison.Ordinal);
-                    if (index != -1)
-                    {
-                        imgFile = imgFile.Substring(0, index);
-                    }
+                    var imgFileName = imgLink.AbsolutePath.TrimStart(new char[] { '/' });
+                    var imgFile = Path.Combine(_docsDirectory, imgFileName);
 
                     if (File.Exists(imgFile))
                     {
                         continue;
                     }
 
-                    Console.WriteLine(" > Downloading image: {0}", imgFile);
+                    Console.WriteLine(" > Downloading image: {0}", imgFileName);
 
                     if (!Directory.Exists(Path.GetDirectoryName(imgFile)))
                     {
