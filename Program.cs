@@ -246,7 +246,7 @@ namespace SteamDocsScraper
                 }
                 catch (WebDriverException e)
                 {
-                    Console.WriteLine(e);
+                    Console.WriteLine(e.Message);
                     continue;
                 }
 
@@ -284,9 +284,17 @@ namespace SteamDocsScraper
             {
                 foreach (var link in links)
                 {
-                    SaveDocumentation(link.Key);
+                    try
+                    {
+                        SaveDocumentation(link.Key);
 
-                    GetDocumentationLinks();
+                        GetDocumentationLinks();
+                    }
+                    catch (WebDriverException e)
+                    {
+                        Console.WriteLine(e.Message);
+                        continue;
+                    }
                 }
             }
         }
@@ -319,13 +327,23 @@ namespace SteamDocsScraper
                 using (var doc = Document.FromStream(stream))
                 {
                     doc.WrapAt = 0;
+                    doc.CharacterEncoding = EncodingType.Utf8;
+                    doc.InputCharacterEncoding = EncodingType.Utf8;
+                    doc.OutputCharacterEncoding = EncodingType.Utf8;
                     doc.OutputBodyOnly = AutoBool.Yes;
                     doc.IndentBlockElements = AutoBool.Yes;
                     doc.IndentSpaces = 4;
                     doc.ShowWarnings = false;
                     doc.Quiet = true;
                     doc.CleanAndRepair();
-                    html = doc.Save();
+
+                    using (var stream2 = new MemoryStream())
+                    using (var streamReader = new StreamReader(stream2, Encoding.UTF8))
+                    {
+                        doc.Save(stream2);
+                        stream2.Position = 0;
+                        html = streamReader.ReadToEnd();
+                    }
                 }
 
                 if (html.Contains("Welcome to Steamworks!"))
@@ -356,7 +374,6 @@ namespace SteamDocsScraper
                         continue;
                     }
 
-                    var imgLink = img.GetAttribute("src");
                     var imgFile = Path.Combine(_imgsDirectory, Path.GetFileName(imgLink));
 
                     var index = imgFile.IndexOf("?", StringComparison.Ordinal);
@@ -422,7 +439,7 @@ namespace SteamDocsScraper
                 Directory.CreateDirectory(folder);
             }
 
-            File.WriteAllText(file, html, Encoding.UTF8);
+            File.WriteAllText(file, html);
             DocumentationLinks[link] = true;
 
             Console.WriteLine(" > Saved");
