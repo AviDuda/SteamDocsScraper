@@ -71,7 +71,7 @@ namespace SteamDocsScraper
 
                 _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/");
 
-                if (_chromeDriver.ElementIsPresent(By.ClassName("avatar")))
+                if (_chromeDriver.ElementIsPresent(By.ClassName("user_avatar")))
                 {
                     _signedIn = true;
                 }
@@ -200,7 +200,7 @@ namespace SteamDocsScraper
                 // what
             }
 
-            if (_chromeDriver.ElementIsPresent(By.Id("success_continue_btn")) || _chromeDriver.ElementIsPresent(By.ClassName("avatar")))
+            if (_chromeDriver.ElementIsPresent(By.Id("success_continue_btn")) || _chromeDriver.ElementIsPresent(By.ClassName("user_avatar")))
             {
                 _signedIn = true;
             }
