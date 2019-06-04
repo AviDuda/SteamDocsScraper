@@ -349,7 +349,9 @@ namespace SteamDocsScraper
 
                 foreach (var img in images)
                 {
-                    if (img.GetAttribute("class") == "avatar")
+                    var imgLink = img.GetAttribute("src");
+
+                    if (imgLink.Contains("/steamcommunity/public/images/avatars/"))
                     {
                         continue;
                     }
