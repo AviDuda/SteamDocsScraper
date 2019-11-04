@@ -15,13 +15,28 @@ namespace SteamDocsScraper
 {
     static class Program
     {
+        class Settings
+        {
+            [JsonProperty(PropertyName = "steamUsername")]
+            public string SteamUsername { get; set; }
+
+            [JsonProperty(PropertyName = "steamPassword")]
+            public string SteamPassword { get; set; }
+
+            [JsonProperty(PropertyName = "predefinedDocs")]
+            public List<string> PredefinedDocs { get; set; } = new List<string>();
+
+            [JsonProperty(PropertyName = "searchQueries")]
+            public List<string> SearchQueries { get; set; } = new List<string>();
+        }
+
         private static string _docsDirectory;
         private static bool _signedIn;
         private static int _loginTries;
 
         // Key is the URL, value is if it was already fetched.
         private static readonly Dictionary<string, bool> DocumentationLinks = new Dictionary<string, bool>();
-        private static Dictionary<string, string> _settings;
+        private static Settings _settings;
         private static ChromeDriver _chromeDriver;
         private static Regex _linkMatch;
 
@@ -37,9 +52,9 @@ namespace SteamDocsScraper
                 throw new Exception("settings.json file doesn't exist.");
             }
 
-            _settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText("settings.json"));
+            _settings = JsonConvert.DeserializeObject<Settings>(File.ReadAllText("settings.json"));
 
-            if (string.IsNullOrWhiteSpace(_settings["steamUsername"]) || string.IsNullOrWhiteSpace(_settings["steamPassword"]))
+            if (string.IsNullOrWhiteSpace(_settings.SteamUsername) || string.IsNullOrWhiteSpace(_settings.SteamPassword))
             {
                 throw new Exception("Please provide your Steam username and password in settings.json.");
             }
@@ -78,25 +93,22 @@ namespace SteamDocsScraper
 
                 if (_signedIn)
                 {
-                    if (_settings.Keys.Contains("predefinedDocs"))
+                    foreach (var key in _settings.PredefinedDocs)
                     {
-                        foreach (var key in _settings["predefinedDocs"].Split(','))
+                        if (string.IsNullOrWhiteSpace(key) || DocumentationLinks.ContainsKey(key))
                         {
-                            if (string.IsNullOrWhiteSpace(key) || DocumentationLinks.ContainsKey(key))
-                            {
-                                Console.WriteLine("Invalid or duplicate predefined doc: {0}", key);
-                                continue;
-                            }
-
-                            DocumentationLinks.Add(key, false);
+                            Console.WriteLine("Invalid or duplicate predefined doc: {0}", key);
+                            continue;
                         }
+
+                        DocumentationLinks.Add(key, false);
                     }
 
                     _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/doc/home");
 
                     GetDocumentationLinks();
 
-                    AddFromSearchResults();
+                    //AddFromSearchResults();
 
                     FetchLinks();
                 }
@@ -105,8 +117,6 @@ namespace SteamDocsScraper
             {
                 _chromeDriver?.Quit();
             }
-
-            _settings["predefinedDocs"] = string.Join(",", DocumentationLinks.Keys.OrderBy(x => x));
 
             File.WriteAllText("settings.json", JsonConvert.SerializeObject(_settings, Formatting.Indented));
 
@@ -152,9 +162,9 @@ namespace SteamDocsScraper
                 var buttonLogin = _chromeDriver.FindElementById("login_btn_signin");
 
                 fieldAccountName.Clear();
-                fieldAccountName.SendKeys(_settings["steamUsername"]);
+                fieldAccountName.SendKeys(_settings.SteamUsername);
                 fieldSteamPassword.Clear();
-                fieldSteamPassword.SendKeys(_settings["steamPassword"]);
+                fieldSteamPassword.SendKeys(_settings.SteamPassword);
 
                 if (_chromeDriver.ElementIsPresent(By.Id("input_captcha")))
                 {
@@ -209,12 +219,7 @@ namespace SteamDocsScraper
 
         private static void AddFromSearchResults()
         {
-            if (!_settings.Keys.Contains("searchQueries"))
-            {
-                return;
-            }
-
-            foreach (var query in _settings["searchQueries"].Split(','))
+            foreach (var query in _settings.SearchQueries)
             {
                 var start = 0;
                 do
@@ -246,6 +251,11 @@ namespace SteamDocsScraper
                     continue;
                 }
 
+                if (href.EndsWith("/steamvr") || href.Contains("STORE_BASE_URL"))
+                {
+                    continue;
+                }
+
                 var match = _linkMatch.Match(href);
 
                 if (!match.Success)
@@ -264,6 +274,7 @@ namespace SteamDocsScraper
                 }
 
                 DocumentationLinks.Add(href, false);
+                _settings.PredefinedDocs.Add(href);
 
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine($" > Found a link: {href}");
@@ -310,6 +321,8 @@ namespace SteamDocsScraper
 
             if (isAdminPage)
             {
+                _chromeDriver.ExecuteScript("(function(){ jQuery('.dynamiclink_youtubeviews').remove(); }());");
+
                 content = _chromeDriver.FindElementByClassName("documentation_bbcode");
                 html = content.GetAttribute("innerHTML");
 
@@ -370,7 +383,18 @@ namespace SteamDocsScraper
                         continue;
                     }
 
+                    if (imgLink.Host == "img.youtube.com")
+                    {
+                        continue;
+                    }
+
                     var imgFileName = imgLink.AbsolutePath.TrimStart(new char[] { '/' });
+
+                    if (imgFileName.StartsWith("steamcommunity/public/images/steamworks_docs"))
+                    {
+                        imgFileName = imgFileName.Replace("steamcommunity/public/images/steamworks_docs", "public");
+                    }
+
                     var imgFile = Path.Combine(_docsDirectory, imgFileName);
 
                     if (File.Exists(imgFile))
