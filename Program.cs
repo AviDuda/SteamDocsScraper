@@ -108,7 +108,7 @@ namespace SteamDocsScraper
 
                     GetDocumentationLinks();
 
-                    //AddFromSearchResults();
+                    AddFromSearchResults();
 
                     FetchLinks();
                 }
@@ -300,7 +300,6 @@ namespace SteamDocsScraper
                     catch (WebDriverException e)
                     {
                         Console.WriteLine(e.Message);
-                        continue;
                     }
                 }
             }
