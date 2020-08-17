@@ -1,8 +1,7 @@
 ﻿{
-	"steamUsername": "your-steam-username",
-	"steamPassword": "your-steam-password",
 	"searchQueries": [
 		"Steam",
 		"SDK",
+		"API"
 	]
 }

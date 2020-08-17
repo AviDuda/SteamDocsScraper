@@ -17,11 +17,6 @@ namespace SteamDocsScraper
     {
         class Settings
         {
-            [JsonProperty(PropertyName = "steamUsername")]
-            public string SteamUsername { get; set; }
-
-            [JsonProperty(PropertyName = "steamPassword")]
-            public string SteamPassword { get; set; }
 
             [JsonProperty(PropertyName = "predefinedDocs")]
             public List<string> PredefinedDocs { get; set; } = new List<string>();
@@ -31,8 +26,6 @@ namespace SteamDocsScraper
         }
 
         private static string _docsDirectory;
-        private static bool _signedIn;
-        private static int _loginTries;
 
         // Key is the URL, value is if it was already fetched.
         private static readonly Dictionary<string, bool> DocumentationLinks = new Dictionary<string, bool>();
@@ -53,11 +46,6 @@ namespace SteamDocsScraper
             }
 
             _settings = JsonConvert.DeserializeObject<Settings>(File.ReadAllText("settings.json"));
-
-            if (string.IsNullOrWhiteSpace(_settings.SteamUsername) || string.IsNullOrWhiteSpace(_settings.SteamPassword))
-            {
-                throw new Exception("Please provide your Steam username and password in settings.json.");
-            }
 
             var options = new ChromeOptions();
             options.AddArgument($"--user-data-dir={Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "userdata")}");
@@ -82,36 +70,24 @@ namespace SteamDocsScraper
 
                 _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/");
 
-                if (_chromeDriver.ElementIsPresent(By.ClassName("user_avatar")))
+                foreach (var key in _settings.PredefinedDocs)
                 {
-                    _signedIn = true;
-                }
-                else
-                {
-                    Login();
-                }
-
-                if (_signedIn)
-                {
-                    foreach (var key in _settings.PredefinedDocs)
+                    if (string.IsNullOrWhiteSpace(key) || DocumentationLinks.ContainsKey(key))
                     {
-                        if (string.IsNullOrWhiteSpace(key) || DocumentationLinks.ContainsKey(key))
-                        {
-                            Console.WriteLine("Invalid or duplicate predefined doc: {0}", key);
-                            continue;
-                        }
-
-                        DocumentationLinks.Add(key, false);
+                        Console.WriteLine("Invalid or duplicate predefined doc: {0}", key);
+                        continue;
                     }
 
-                    _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/doc/home");
-
-                    GetDocumentationLinks();
-
-                    AddFromSearchResults();
-
-                    FetchLinks();
+                    DocumentationLinks.Add(key, false);
                 }
+
+                _chromeDriver.Navigate().GoToUrl("https://partner.steamgames.com/doc/home");
+
+                GetDocumentationLinks();
+
+                AddFromSearchResults();
+
+                FetchLinks();
             }
             finally
             {
@@ -122,99 +98,6 @@ namespace SteamDocsScraper
 
             Console.WriteLine("Done.");
             Console.ReadKey();
-        }
-
-        private static void Login()
-        {
-            new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(10)).Until(condition =>
-            {
-                try
-                {
-                    return _chromeDriver.FindElement(By.Id("login_btn_signin")).Displayed;
-                }
-                catch
-                {
-                    return false;
-                }
-            });
-
-            var needsSteamGuard = _chromeDriver.ElementIsPresent(By.Id("authcode"));
-
-            if (needsSteamGuard)
-            {
-                var friendlyName = _chromeDriver.FindElementById("friendlyname");
-                friendlyName.SendKeys("SteamDocsScraper");
-
-                var fieldEmailAuth = _chromeDriver.FindElementById("authcode");
-                fieldEmailAuth.Clear();
-
-                Console.Write("Please insert a Steam Guard code: ");
-                var steamGuard = Console.ReadLine();
-                fieldEmailAuth.SendKeys(steamGuard);
-
-                var submitButton = _chromeDriver.FindElementByCssSelector("#auth_buttonsets .auth_button");
-                submitButton.Click();
-            }
-            else
-            {
-                var fieldAccountName = _chromeDriver.FindElementById("steamAccountName");
-                var fieldSteamPassword = _chromeDriver.FindElementById("steamPassword");
-                var buttonLogin = _chromeDriver.FindElementById("login_btn_signin");
-
-                fieldAccountName.Clear();
-                fieldAccountName.SendKeys(_settings.SteamUsername);
-                fieldSteamPassword.Clear();
-                fieldSteamPassword.SendKeys(_settings.SteamPassword);
-
-                if (_chromeDriver.ElementIsPresent(By.Id("input_captcha")))
-                {
-                    var fieldCaptcha = _chromeDriver.FindElementById("input_captcha");
-                    fieldCaptcha.Clear();
-
-                    Console.Write("Please enter captcha: ");
-                    var captcha = Console.ReadLine();
-                    fieldCaptcha.SendKeys(captcha);
-                }
-
-                buttonLogin.Click();
-            }
-
-            try
-            {
-                var wait = new WebDriverWait(_chromeDriver, TimeSpan.FromSeconds(5));
-                wait.Until(condition =>
-                {
-                    try
-                    {
-                        var successButton = _chromeDriver.FindElement(By.Id("success_continue_btn"));
-                        var avatar = _chromeDriver.FindElement(By.ClassName("avatar"));
-
-                        return successButton.Displayed || avatar.Displayed;
-                    }
-                    catch (StaleElementReferenceException)
-                    {
-                        return false;
-                    }
-                    catch (NoSuchElementException)
-                    {
-                        return false;
-                    }
-                });
-            }
-            catch (WebDriverTimeoutException)
-            {
-                // what
-            }
-
-            if (_chromeDriver.ElementIsPresent(By.Id("success_continue_btn")) || _chromeDriver.ElementIsPresent(By.ClassName("user_avatar")))
-            {
-                _signedIn = true;
-            }
-            else if (_loginTries < 3)
-            {
-                _loginTries++;
-                Login();
-            }
         }
 
         private static void AddFromSearchResults()
